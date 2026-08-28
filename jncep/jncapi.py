@@ -3,7 +3,7 @@ import json
 import logging
 
 from addict import Dict as Addict
-import httpx
+import httpx2
 import trio
 
 from . import utils
@@ -18,7 +18,7 @@ API_COMMON_HEADERS = {
     "content-type": "application/json",
 }
 
-logging.getLogger("httpx").disabled = True
+logging.getLogger("httpx2").disabled = True
 
 
 class InvalidCDNRequestException(Exception):
@@ -128,10 +128,10 @@ class JNC_API:
 
             hooks = {"request": [log_request], "response": [log_response]}
 
-        timeout = httpx.Timeout(api_default_timeout, pool=None)
-        self.api_session = httpx.AsyncClient(
+        timeout = httpx2.Timeout(api_default_timeout, pool=None)
+        self.api_session = httpx2.AsyncClient(
             base_url=config.API_URL_BASE,
-            limits=httpx.Limits(max_connections=api_connections),
+            limits=httpx2.Limits(max_connections=api_connections),
             headers=API_COMMON_HEADERS,
             timeout=timeout,
             event_hooks=hooks,
@@ -139,9 +139,9 @@ class JNC_API:
 
         # full URL always provided (CDN) so no need for base location parameter
         # also multiple URL possible
-        timeout = httpx.Timeout(cdn_default_timeout, pool=None)
-        self.cdn_session = httpx.AsyncClient(
-            limits=httpx.Limits(max_connections=cdn_connections),
+        timeout = httpx2.Timeout(cdn_default_timeout, pool=None)
+        self.cdn_session = httpx2.AsyncClient(
+            limits=httpx2.Limits(max_connections=cdn_connections),
             timeout=timeout,
             event_hooks=hooks,
         )
