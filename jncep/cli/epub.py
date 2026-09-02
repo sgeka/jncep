@@ -2,11 +2,11 @@ import logging
 
 import click
 
-from .. import core, jncalts, jncweb, namegen, spec, track, utils
+from .. import core, jncalts, namegen, spec, utils
 from ..trio_utils import coro
-from ..utils import tryint
 from . import options
 from .base import CatchAllExceptionsCommand
+from .series import fetch_series_from_url, resolve_jnc_url_or_index
 
 logger = logging.getLogger(__name__)
 console = utils.getConsole()
@@ -52,9 +52,44 @@ async def generate_epub(
     style_css_path,
     namegen_rules,
 ):
+    epub_generation_options = create_epub_generation_options(
+        output_dirpath,
+        is_subfolder,
+        is_by_volume,
+        is_extract_images,
+        is_extract_content,
+        is_not_replace_chars,
+        style_css_path,
+        namegen_rules,
+    )
+
+    jnc_url = resolve_jnc_url_or_index(jnc_url_or_index)
+    if not jnc_url:
+        return
+
+    origin = jncalts.find_origin(jnc_url)
+    config = jncalts.get_alt_config_for_origin(origin)
+
+    async with core.JNCEPSession(config, credentials) as session:
+        series, jnc_resource = await fetch_series_from_url(session, jnc_url)
+
+        await generate_epubs_for_resource(
+            session, series, jnc_resource, part_spec, epub_generation_options
+        )
+
+
+def create_epub_generation_options(
+    output_dirpath,
+    is_subfolder,
+    is_by_volume,
+    is_extract_images,
+    is_extract_content,
+    is_not_replace_chars,
+    style_css_path,
+    namegen_rules,
+):
     name_generator = namegen.NameGenerator(namegen_rules)
-    # created by group
-    epub_generation_options = core.EpubGenerationOptions(
+    return core.EpubGenerationOptions(
         output_dirpath,
         is_subfolder,
         is_by_volume,
@@ -65,41 +100,18 @@ async def generate_epub(
         name_generator,
     )
 
-    index = tryint(jnc_url_or_index)
-    if index is not None:
-        track_manager = track.TrackConfigManager()
-        tracked_series = track_manager.read_tracked_series()
 
-        index0 = index - 1
-        if index0 < 0 or index0 >= len(tracked_series):
-            console.warning(f"Index '{index}' is not valid! (Use 'track list')")
-            return
-        series_url_list = list(tracked_series.keys())
-        jnc_url = series_url_list[index0]
-        series_name = tracked_series[jnc_url].name
-        console.info(f"Resolve to series '[highlight]{series_name}'[/]")
+async def generate_epubs_for_resource(
+    session, series, jnc_resource, part_spec, epub_generation_options
+):
+    if part_spec:
+        console.info(f"Use part specification '[highlight]{part_spec}[/]'")
+        part_spec_analyzed = spec.analyze_part_specs(part_spec)
+        part_spec_analyzed.normalize_and_verify(series)
     else:
-        jnc_url = jnc_url_or_index
+        part_spec_analyzed = await core.to_part_spec(series, jnc_resource)
 
-    origin = jncalts.find_origin(jnc_url)
-    config = jncalts.get_alt_config_for_origin(origin)
-
-    async with core.JNCEPSession(config, credentials) as session:
-        jnc_resource = jncweb.resource_from_url(jnc_url)
-        series_id = await core.resolve_series(session, jnc_resource)
-        series = await core.fetch_meta(session, series_id)
-        core.check_series_is_novel(series)
-
-        if part_spec:
-            console.info(f"Use part specification '[highlight]{part_spec}[/]'")
-            part_spec_analyzed = spec.analyze_part_specs(part_spec)
-            part_spec_analyzed.normalize_and_verify(series)
-        else:
-            part_spec_analyzed = await core.to_part_spec(series, jnc_resource)
-
-        await generate_epubs(
-            session, series, part_spec_analyzed, epub_generation_options
-        )
+    await generate_epubs(session, series, part_spec_analyzed, epub_generation_options)
 
 
 async def generate_epubs(session, series, part_spec_analyzed, epub_generation_options):
