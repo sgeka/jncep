@@ -174,7 +174,7 @@ class JNC_API:
             dict: {"otp": str, "proof": str, "ttl": int}
 
         Raises:
-            httpx.HTTPStatusError: If request fails (including 429 rate limiting)
+            httpx2.HTTPStatusError: If request fails (including 429 rate limiting)
         """
         # Use the working v2 endpoint with GET method as primary
         path = f"{self.config.API_PATH_BASE}/auth/otp4app/generate"
@@ -196,7 +196,7 @@ class JNC_API:
                     logger.debug("OTP generated successfully")
                     return {"otp": data["otp"], "proof": data["proof"], "ttl": data["ttl"]}
 
-            except httpx.HTTPStatusError as e:
+            except httpx2.HTTPStatusError as e:
                 logger.debug(f"{method.upper()} to {path} failed: {e.response.status_code}")
                 if e.response.status_code not in [404, 405]:  # Not method/path not found
                     raise
@@ -211,7 +211,7 @@ class JNC_API:
         # Try POST first (as documented), fall back to GET if needed
         try:
             r = await self.api_session.post(path, params=params)
-        except httpx.HTTPStatusError as e:
+        except httpx2.HTTPStatusError as e:
             if e.response.status_code == 405:  # Method Not Allowed
                 # Try GET if POST failed
                 logger.debug("POST failed with 405, trying GET")
@@ -221,7 +221,7 @@ class JNC_API:
         
         if r.status_code == 429:
             # Rate limited - raise with user-friendly message
-            raise httpx.HTTPStatusError(
+            raise httpx2.HTTPStatusError(
                 "Rate limit exceeded. Please wait a moment and try again.",
                 request=r.request,
                 response=r,
@@ -245,7 +245,7 @@ class JNC_API:
             dict|None: Token dict if verified (200), None if not verified yet (204)
 
         Raises:
-            httpx.HTTPStatusError: If request fails (including 429 rate limiting)
+            httpx2.HTTPStatusError: If request fails (including 429 rate limiting)
         """
         # OTP check endpoint uses the /app/v2 prefix like the generate endpoint
         path = f"{self.config.API_PATH_BASE}/auth/otp4app/check/{otp}/{proof}"
@@ -255,7 +255,7 @@ class JNC_API:
         
         if r.status_code == 429:
             # Rate limited - raise so caller can implement exponential backoff
-            raise httpx.HTTPStatusError(
+            raise httpx2.HTTPStatusError(
                 "Rate limit exceeded. Please wait a moment and try again.",
                 request=r.request,
                 response=r,

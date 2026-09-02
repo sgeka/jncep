@@ -17,7 +17,7 @@ from typing import NamedTuple
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 from exceptiongroup import BaseExceptionGroup
-import httpx
+import httpx2
 import trio
 
 from . import epub, jncalts, jncapi, jncweb, namegen_utils, spec, utils
@@ -235,7 +235,7 @@ class JNCEPSession:
             otp_code = otp_data["otp"]
             proof = otp_data["proof"]
             ttl = otp_data["ttl"]
-        except httpx.HTTPStatusError as e:
+        except httpx2.HTTPStatusError as e:
             if e.response.status_code == 429:
                 console.error("Rate limit exceeded. Please wait a moment and try again.")
             else:
@@ -306,7 +306,7 @@ class JNCEPSession:
                     # Not verified yet, continue polling
                     backoff_count = 0  # Reset backoff on successful check
 
-                except httpx.HTTPStatusError as e:
+                except httpx2.HTTPStatusError as e:
                     if e.response.status_code == 429:
                         # Rate limited - exponential backoff
                         backoff_count += 1
